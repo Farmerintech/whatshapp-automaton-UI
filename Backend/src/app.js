@@ -1,7 +1,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import sequelize from "./db.js";
-import flowRoutes from "./routes/flowRoutes.js";
+import router from "./routes/FlowRoutes.js";
 import User from "./models/User.js";
 import Flow from "./models/Flow.js";
 
