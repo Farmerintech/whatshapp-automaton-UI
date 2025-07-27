@@ -1,9 +1,13 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Handle, Position } from "@xyflow/react";
 
 const QuickReplyNode = ({ id, data }) => {
-  // Default options: from props or fallback to Yes/No
   const [options, setOptions] = useState(data.options || ["Yes", "No"]);
+
+  // Sync local state when node loads or updates
+  useEffect(() => {
+    setOptions(data.options || ["Yes", "No"]);
+  }, [data.options]);
 
   const deleteNode = () => {
     const event = new CustomEvent("delete-node", { detail: { nodeId: id } });
@@ -11,13 +15,23 @@ const QuickReplyNode = ({ id, data }) => {
   };
 
   const addOption = () => {
-    setOptions([...options, `Option ${options.length + 1}`]);
+    const newOptions = [...options, `Option ${options.length + 1}`];
+    setOptions(newOptions);
+    dispatchOptionsUpdate(newOptions);
   };
 
   const updateOption = (index, value) => {
     const updated = [...options];
     updated[index] = value;
     setOptions(updated);
+    dispatchOptionsUpdate(updated);
+  };
+
+  const dispatchOptionsUpdate = (updatedOptions) => {
+    const updateEvent = new CustomEvent("update-node-options", {
+      detail: { nodeId: id, options: updatedOptions },
+    });
+    window.dispatchEvent(updateEvent);
   };
 
   return (

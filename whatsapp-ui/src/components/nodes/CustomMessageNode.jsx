@@ -1,8 +1,15 @@
-import React, { useState } from "react";
+import React from "react";
 import { Handle, Position } from "@xyflow/react";
 
 const CustomMessageNode = ({ id, data }) => {
-  const [message, setMessage] = useState(data.text || "Your custom message");
+  const handleChange = (e) => {
+    const newText = e.target.value;
+
+    const updateEvent = new CustomEvent("update-node-text", {
+      detail: { nodeId: id, text: newText },
+    });
+    window.dispatchEvent(updateEvent);
+  };
 
   const deleteNode = () => {
     const event = new CustomEvent("delete-node", { detail: { nodeId: id } });
@@ -54,8 +61,9 @@ const CustomMessageNode = ({ id, data }) => {
           resize: "none",
           fontFamily: "Arial, sans-serif",
         }}
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
+        value={data.text || ""}  // Controlled by Workflow
+        onChange={handleChange}
+        placeholder="Type your custom message..."
       />
 
       {/* Connection Handles */}
