@@ -1,8 +1,8 @@
 import { DataTypes } from "sequelize";
-import sequelize from "../db.js";
-import User from "./User.js";
+import User from "./UserModel.js";
+import DB from "../config/db.js";
 
-const Flow = sequelize.define("Flow", {
+const Flow = DB.define("Flow", {
   name: {
     type: DataTypes.STRING,
     allowNull: false,

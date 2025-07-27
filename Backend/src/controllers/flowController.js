@@ -1,5 +1,5 @@
-import Flow from "../models/Flow.js";
-import User from "../models/User.js";
+import Flow from "../model/FlowModel.js";
+import User from "../model/UserModel.js";
 
 // Create a new flow
 export const createFlow = async (req, res) => {

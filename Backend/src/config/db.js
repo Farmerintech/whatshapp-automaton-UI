@@ -1,9 +1,15 @@
 import { Sequelize } from "sequelize";
 
-// Example URI: postgres://username:password@host:5432/databasename
-const sequelize = new Sequelize(process.env.DATABASE_URL, {
+const DB = new Sequelize(process.env.DATABASE_URL, {
   dialect: "postgres",
   logging: false,
+    dialectOptions: {
+    ssl: {
+      require: true, // Ensure SSL is used
+      rejectUnauthorized: false, // Disable certificate validation (Render PostgreSQL)
+    }
+  }
+
 });
 
-export default sequelize;
+export default DB;
