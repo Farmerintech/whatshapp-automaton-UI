@@ -12,13 +12,12 @@ const Dashboard = () => {
       <ReactFlowProvider>
         <div
           style={{
-            display: "flex",
             width: "100vw",
             height: "100vh",
             margin: 0,
             padding: 0,
           }}
-          className="bg-red-500"
+          className="flex bg-red-500"
         >
           <Sidebar />
           <div style={{ width: "75%", height: "100%" }}>

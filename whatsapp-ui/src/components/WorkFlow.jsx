@@ -8,21 +8,21 @@ import {
   useNodesState,
   useEdgesState,
   addEdge,
-  useReactFlow
+  useReactFlow,
 } from "@xyflow/react";
 
 import "@xyflow/react/dist/style.css";
 import TemplateNode from "./nodes/TemplateNode";
 import QuickReplyNode from "./nodes/QuickReplyNode";
 import CustomMessageNode from "./nodes/CustomMessageNode";
-import { useDragDrop } from "../context/drag-drop";
 import LogicNode from "./nodes/LogicNode";
+import { useDragDrop } from "../context/drag-drop";
 
 const nodeTypes = {
   template: TemplateNode,
   quick: QuickReplyNode,
   custom: CustomMessageNode,
-  logic: LogicNode
+  logic: LogicNode,
 };
 
 const getId = () => `node_${+new Date()}`;
@@ -34,13 +34,39 @@ export const Workflow = () => {
   const [dragData] = useDragDrop();
   const reactFlowWrapper = useRef(null);
 
-  // Utility to log/export workflow
-  const exportWorkflow = (customNodes = nodes, customEdges = edges) => {
-    const workflow = { nodes: customNodes, edges: customEdges };
-    console.log("----- SAVED WORKFLOW JSON -----");
-    console.log(JSON.stringify(workflow, null, 2));
-    console.log("--------------------------------");
-    return workflow;
+  // Logs and exports workflow
+  const exportWorkflow = async (customNodes = nodes, customEdges = edges) => {
+    const workflow = {
+      userId: 1, // TODO: replace with actual logged-in user later
+      name: "My Saved Flow",
+      nodes: customNodes,
+      edges: customEdges,
+    };
+
+    // console.log("----- SAVED WORKFLOW JSON -----");
+    // console.log(JSON.stringify(workflow, null, 2));
+    // console.log("--------------------------------");
+
+    try {
+      const res = await fetch("http://localhost:5000/api/flows", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(workflow),
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to save workflow: ${res.status}`);
+      }
+
+      const saved = await res.json();
+      console.log("✅ Workflow saved to backend:", saved);
+      alert("Workflow saved successfully!");
+    } catch (err) {
+      console.error("❌ Error saving workflow:", err);
+      alert("Failed to save workflow. Check console for details.");
+    }
   };
 
   const logCurrentState = (updatedNodes = nodes, updatedEdges = edges) => {
@@ -112,7 +138,7 @@ export const Workflow = () => {
     [nodes, edges]
   );
 
-  // Listen for custom "delete-node" event triggered by node "×" buttons
+  // Listen for custom node delete event
   useEffect(() => {
     const handleDeleteNode = (e) => {
       const { nodeId } = e.detail;
@@ -130,16 +156,15 @@ export const Workflow = () => {
     };
   }, [edges, setNodes]);
 
-  // Generate JSON preview live
   const workflowJSON = JSON.stringify({ nodes, edges }, null, 2);
 
   return (
     <div style={{ display: "flex", width: "100%", height: "100%" }}>
-      {/* Flow Canvas */}
+      {/* Canvas */}
       <div
         ref={reactFlowWrapper}
         style={{
-          flex: 3, // 75% width
+          flex: 3,
           height: "100%",
           background: "#fff",
           borderRight: "1px solid #ddd",
@@ -171,10 +196,10 @@ export const Workflow = () => {
         </ReactFlow>
       </div>
 
-      {/* JSON Preview + Save Button */}
+      {/* Live JSON + Save */}
       <div
         style={{
-          flex: 1, // 25% width
+          flex: 1,
           height: "100%",
           background: "#f9f9f9",
           padding: "10px",
@@ -183,14 +208,8 @@ export const Workflow = () => {
           overflowY: "auto",
         }}
       >
-        <h4 style={{ marginBottom: "10px" }}>Workflow JSON (Live)</h4>
-        <pre
-          style={{
-            whiteSpace: "pre-wrap",
-            wordWrap: "break-word",
-            maxHeight: "80%",
-          }}
-        >
+        <h4>Workflow JSON (Live)</h4>
+        <pre style={{ maxHeight: "80%", whiteSpace: "pre-wrap" }}>
           {workflowJSON}
         </pre>
         <button
@@ -205,7 +224,7 @@ export const Workflow = () => {
             cursor: "pointer",
           }}
         >
-          Save Workflow (Log JSON)
+          Save Workflow
         </button>
       </div>
     </div>

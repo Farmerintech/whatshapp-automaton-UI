@@ -76,12 +76,12 @@ function Sidebar() {
   style={{
     padding: "8px",
     marginBottom: "8px",
-    background: "#ffeeba",
     border: "1px solid #ffdf7e",
     borderRadius: "4px",
     cursor: "move",
     marginTop:"8px"
   }}
+  className="bg-[#ffeeba]"
 >
   Logic Branch (If / Else)
 </div>
