@@ -5,24 +5,23 @@ import {
   ReactFlow,
   MiniMap,
   Controls,
-  useNodesState,
-  useEdgesState,
   addEdge,
   useReactFlow,
 } from "@xyflow/react";
-import { FaRegEdit, FaTrash } from "react-icons/fa";
-import {HiOutlineTrash  } from "react-icons/hi";
-import { MdModeEditOutline  } from "react-icons/md";
+import { HiOutlineTrash } from "react-icons/hi";
+import { MdModeEditOutline } from "react-icons/md";
 
 import "@xyflow/react/dist/style.css";
 import TemplateNode from "./nodes/TemplateNode";
-import QuickReplyNode from "./nodes/QuickReplyNode";
 import CustomMessageNode from "./nodes/CustomMessageNode";
 import LogicNode from "./nodes/LogicNode";
 import { useDragDrop } from "../context/drag-drop";
+import OptionsNode from "./nodes/OptionsNode";
+import QuickReplyNode from "./nodes/QuickReplyNode";
 
 const nodeTypes = {
   template: TemplateNode,
+  option: OptionsNode,
   quick: QuickReplyNode,
   custom: CustomMessageNode,
   logic: LogicNode,
@@ -30,12 +29,19 @@ const nodeTypes = {
 
 const getId = () => `node_${+new Date()}`;
 
-export const Workflow = () => {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+export const Workflow = ({
+  nodes,
+  setNodes,
+  onNodesChange,
+  edges,
+  setEdges,
+  onEdgesChange,
+  activeFlowId,
+  setActiveFlowId,
+  flowName,
+  setFlowName,
+}) => {
   const [savedFlows, setSavedFlows] = useState([]);
-  const [activeFlowId, setActiveFlowId] = useState(null);
-  const [flowName, setFlowName] = useState("");
   const { screenToFlowPosition } = useReactFlow();
   const [dragData] = useDragDrop();
   const reactFlowWrapper = useRef(null);
@@ -51,9 +57,12 @@ export const Workflow = () => {
       const user = getUser();
       if (!user) return;
 
-      const res = await fetch(`http://localhost:5000/api/flows/user/${user.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `http://localhost:5000/api/flows/user/${user.id}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       const data = await res.json();
       setSavedFlows(data);
     } catch (err) {
@@ -73,10 +82,39 @@ export const Workflow = () => {
       return;
     }
 
+    // Normalize edges so source is always the "previous" node, target is "next"
+    const normalizedEdges = edges.map((edge) => {
+      const sourceNode = nodes.find((n) => n.id === edge.source);
+      const targetNode = nodes.find((n) => n.id === edge.target);
+      if (
+        sourceNode &&
+        targetNode &&
+        sourceNode.position.y > targetNode.position.y
+      ) {
+        return { ...edge, source: edge.target, target: edge.source };
+      }
+      return edge;
+    });
+
+    // Clean nodes before saving: remove options from custom/quick, strip Editable text from logic
+    const cleanedNodes = nodes.map((node) => {
+      let newData = { ...node.data };
+
+      if (node.type === "logic") {
+        delete newData.text; // logic nodes shouldn't have text
+      }
+
+      if (node.type === "custom" || node.type === "quick") {
+        delete newData.options; // remove options
+      }
+
+      return { ...node, data: newData };
+    });
+
     const workflow = {
       name: flowName || `Flow ${Date.now()}`,
-      nodes,
-      edges,
+      nodes: cleanedNodes,
+      edges: normalizedEdges,
       userId: user.id,
     };
 
@@ -137,8 +175,33 @@ export const Workflow = () => {
   };
 
   const onConnect = useCallback(
-    (params) => setEdges((eds) => addEdge({ ...params, animated: true }, eds)),
-    []
+    (params) => {
+      setEdges((eds) => addEdge({ ...params, animated: true }, eds));
+
+      // Automatically label custom nodes when connected to logic nodes
+      const sourceNode = nodes.find((n) => n.id === params.source);
+      const targetNode = nodes.find((n) => n.id === params.target);
+
+      if (sourceNode?.type === "logic" && targetNode?.type === "custom") {
+        const label =
+          params.sourceHandle === "true-branch" ? "Yes" : "No";
+
+        setNodes((nds) =>
+          nds.map((node) =>
+            node.id === targetNode.id
+              ? {
+                  ...node,
+                  data: {
+                    ...node.data,
+                    label, // override label dynamically
+                  },
+                }
+              : node
+          )
+        );
+      }
+    },
+    [nodes]
   );
 
   const onDrop = useCallback(
@@ -158,8 +221,16 @@ export const Workflow = () => {
         position,
         data: {
           ...dragData,
-          text: dragData.text || "Editable text",
-          options: dragData.options || ["Yes", "No"],
+          // Only template & custom nodes get editable text by default
+          text:
+            dragData.type !== "logic"
+              ? dragData.text || "Editable text"
+              : undefined,
+          // Only options node and logic node get options by default
+          options:
+            dragData.type === "option" || dragData.type === "logic"
+              ? dragData.options || ["Yes", "No"]
+              : undefined,
         },
       };
 
@@ -174,7 +245,22 @@ export const Workflow = () => {
   }, []);
 
   const loadFlow = (flow) => {
-    setNodes(flow.nodes || []);
+    // Clean old flows (remove Editable text, strip options where needed)
+    const cleanedNodes = (flow.nodes || []).map((node) => {
+      let newData = { ...node.data };
+
+      if (node.type === "logic") {
+        delete newData.text;
+      }
+
+      if (node.type === "custom" || node.type === "quick") {
+        delete newData.options;
+      }
+
+      return { ...node, data: newData };
+    });
+
+    setNodes(cleanedNodes);
     setEdges(flow.edges || []);
     setActiveFlowId(flow.id);
     setFlowName(flow.name);
@@ -185,14 +271,18 @@ export const Workflow = () => {
     const handleDeleteNode = (e) => {
       const { nodeId } = e.detail;
       setNodes((nds) => nds.filter((node) => node.id !== nodeId));
-      setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
+      setEdges((eds) =>
+        eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId)
+      );
     };
 
     const handleTextUpdate = (e) => {
       const { nodeId, text } = e.detail;
       setNodes((nds) =>
         nds.map((node) =>
-          node.id === nodeId ? { ...node, data: { ...node.data, text } } : node
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, text } }
+            : node
         )
       );
     };
@@ -201,7 +291,9 @@ export const Workflow = () => {
       const { nodeId, options } = e.detail;
       setNodes((nds) =>
         nds.map((node) =>
-          node.id === nodeId ? { ...node, data: { ...node.data, options: [...options] } } : node
+          node.id === nodeId
+            ? { ...node, data: { ...node.data, options: [...options] } }
+            : node
         )
       );
     };
@@ -221,7 +313,12 @@ export const Workflow = () => {
     <div style={{ display: "flex", width: "100%", height: "100%" }}>
       <div
         ref={reactFlowWrapper}
-        style={{ flex: 3, height: "100%", background: "#fff", borderRight: "1px solid #ddd" }}
+        style={{
+          flex: 3,
+          height: "100%",
+          background: "#fff",
+          borderRight: "1px solid #ddd",
+        }}
       >
         <ReactFlow
           nodes={nodes}
@@ -231,6 +328,10 @@ export const Workflow = () => {
           onConnect={onConnect}
           onDrop={onDrop}
           onDragOver={onDragOver}
+          onEdgeClick={(event, edge) => {
+            event.stopPropagation();
+            setEdges((eds) => eds.filter((e) => e.id !== edge.id));
+          }}
           nodeTypes={nodeTypes}
           fitView
         >
@@ -252,29 +353,17 @@ export const Workflow = () => {
           gap: "12px",
         }}
       >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
           <h4>Saved Flows</h4>
-          <button
-            onClick={() => {
-              setNodes([]);
-              setEdges([]);
-              setActiveFlowId(null);
-              setFlowName("");
-            }}
-            style={{
-              background: "#007bff",
-              color: "#fff",
-              border: "none",
-              borderRadius: "4px",
-              padding: "6px 10px",
-              cursor: "pointer",
-            }}
-          >
-            + New Flow
-          </button>
         </div>
 
-        {savedFlows.length === 0 && <p>No saved flows yet</p>}
+        {savedFlows.length === 0 && <p>No saved chat agent</p>}
         <ul style={{ listStyle: "none", padding: 0 }}>
           {savedFlows.map((flow) => (
             <li
@@ -308,7 +397,7 @@ export const Workflow = () => {
                   marginRight: "4px",
                 }}
               >
-                <MdModeEditOutline/>
+                <MdModeEditOutline />
               </button>
               <button
                 onClick={() => deleteFlow(flow.id)}
@@ -321,7 +410,7 @@ export const Workflow = () => {
                   cursor: "pointer",
                 }}
               >
-                <HiOutlineTrash/>
+                <HiOutlineTrash />
               </button>
             </li>
           ))}
@@ -329,7 +418,7 @@ export const Workflow = () => {
 
         <input
           type="text"
-          placeholder="Flow Name"
+          placeholder="Chat agent name"
           value={flowName}
           onChange={(e) => setFlowName(e.target.value)}
           style={{
@@ -338,21 +427,16 @@ export const Workflow = () => {
             marginTop: "10px",
             marginBottom: "10px",
           }}
+          className="border border-gray-500 rounded-[8px] outline-none hover:border-gray-700"
         />
 
         <button
           onClick={saveOrUpdateWorkflow}
-          style={{
-            padding: "8px 12px",
-            background: activeFlowId ? "orange" : "green",
-            color: "#fff",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            width: "100%",
-          }}
+          className={`${
+            !activeFlowId ? "bg-green-600" : "bg-orange-500"
+          } w-full px-[12px] py-[8px] text-white border-none pointer outline-none rounded-[8px]`}
         >
-          {activeFlowId ? "Update Flow" : "Save Flow"}
+          {activeFlowId ? "Update agent" : "Save agent"}
         </button>
       </div>
     </div>

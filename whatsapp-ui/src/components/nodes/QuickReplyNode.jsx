@@ -1,37 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Handle, Position } from "@xyflow/react";
 
 const QuickReplyNode = ({ id, data }) => {
-  const [options, setOptions] = useState(data.options || ["Yes", "No"]);
-
-  // Sync local state when node loads or updates
-  useEffect(() => {
-    setOptions(data.options || ["Yes", "No"]);
-  }, [data.options]);
-
   const deleteNode = () => {
     const event = new CustomEvent("delete-node", { detail: { nodeId: id } });
     window.dispatchEvent(event);
-  };
-
-  const addOption = () => {
-    const newOptions = [...options, `Option ${options.length + 1}`];
-    setOptions(newOptions);
-    dispatchOptionsUpdate(newOptions);
-  };
-
-  const updateOption = (index, value) => {
-    const updated = [...options];
-    updated[index] = value;
-    setOptions(updated);
-    dispatchOptionsUpdate(updated);
-  };
-
-  const dispatchOptionsUpdate = (updatedOptions) => {
-    const updateEvent = new CustomEvent("update-node-options", {
-      detail: { nodeId: id, options: updatedOptions },
-    });
-    window.dispatchEvent(updateEvent);
   };
 
   return (
@@ -68,42 +41,8 @@ const QuickReplyNode = ({ id, data }) => {
         ×
       </button>
 
+      {/* Just the Quick Reply Title */}
       <strong>{data.label || "Quick Reply"}</strong>
-
-      {/* Editable Options */}
-      <div style={{ marginTop: "8px" }}>
-        {options.map((opt, idx) => (
-          <input
-            key={idx}
-            type="text"
-            value={opt}
-            onChange={(e) => updateOption(idx, e.target.value)}
-            style={{
-              width: "100%",
-              marginBottom: "4px",
-              padding: "4px",
-              border: "1px solid #a3cfbb",
-              borderRadius: "4px",
-              fontFamily: "Arial, sans-serif",
-            }}
-          />
-        ))}
-        <button
-          onClick={addOption}
-          style={{
-            marginTop: "4px",
-            padding: "4px 8px",
-            background: "#28a745",
-            color: "#fff",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            fontSize: "12px",
-          }}
-        >
-          + Add Option
-        </button>
-      </div>
 
       {/* Connection Handles */}
       <Handle type="target" position={Position.Left} style={{ background: "#28a745" }} />

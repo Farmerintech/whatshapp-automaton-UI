@@ -1,11 +1,20 @@
 import React, { useState } from "react";
 import { Handle, Position } from "@xyflow/react";
 
-const LogicNode = ({ id, data }) => {
-  const [condition, setCondition] = useState(data.condition || 'reply == "Yes"');
+const LogicNode = ({ id, data, isConnectable }) => {
+  const [condition, setCondition] = useState(data.condition || 'reply === "Yes"');
 
   const deleteNode = () => {
     const event = new CustomEvent("delete-node", { detail: { nodeId: id } });
+    window.dispatchEvent(event);
+  };
+
+  // Save the updated condition back to the node
+  const updateCondition = (value) => {
+    setCondition(value);
+    const event = new CustomEvent("update-node-condition", {
+      detail: { nodeId: id, condition: value },
+    });
     window.dispatchEvent(event);
   };
 
@@ -44,41 +53,52 @@ const LogicNode = ({ id, data }) => {
       </button>
 
       <strong>Logic Branch</strong>
-      <p style={{ fontSize: "12px", margin: "6px 0" }}>Define a condition</p>
+      <p style={{ fontSize: "12px", margin: "6px 0" }}>Set your condition:</p>
 
-      <textarea
+      <input
+        type="text"
         value={condition}
-        onChange={(e) => setCondition(e.target.value)}
+        onChange={(e) => updateCondition(e.target.value)}
         style={{
           width: "100%",
-          minHeight: "40px",
           border: "1px solid #ffeeba",
           borderRadius: "4px",
           padding: "4px",
-          resize: "none",
-          fontFamily: "Arial, sans-serif",
+          fontFamily: "monospace",
         }}
+        placeholder='e.g. reply === "Yes"'
       />
 
       <p style={{ fontSize: "12px", marginTop: "4px" }}>
-        If true → Right output, If false → Bottom output
+        Incoming → Right | True → Left | False → Bottom
       </p>
 
-      {/* Connection Handles */}
-      <Handle type="target" position={Position.Left} style={{ background: "#856404" }} />
-      {/* True branch (Right) */}
+      {/* Handles */}
+      {/* Incoming (Right) */}
+      <Handle
+        type="target"
+        position={Position.Right}
+        id="incoming"
+        isConnectable={isConnectable}
+        style={{ background: "#856404", width: 12, height: 12, borderRadius: "50%" }}
+      />
+
+      {/* True output (Left) */}
       <Handle
         type="source"
-        position={Position.Right}
+        position={Position.Left}
         id="true-branch"
-        style={{ background: "#28a745" }}
+        isConnectable={isConnectable}
+        style={{ background: "#28a745", width: 12, height: 12, borderRadius: "50%" }}
       />
-      {/* False branch (Bottom) */}
+
+      {/* False output (Bottom) */}
       <Handle
         type="source"
         position={Position.Bottom}
         id="false-branch"
-        style={{ background: "#dc3545" }}
+        isConnectable={isConnectable}
+        style={{ background: "#dc3545", width: 12, height: 12, borderRadius: "50%" }}
       />
     </div>
   );

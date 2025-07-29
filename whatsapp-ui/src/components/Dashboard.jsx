@@ -1,27 +1,34 @@
 import React, { useState } from "react";
 import DragDropContext from "../context/drag-drop";
 import Sidebar from "./Sidebar";
-import { Workflow } from "./Workflow";
 import { ReactFlowProvider } from "@xyflow/react";
-
-const Dashboard = () => {
+import { Workflow } from "./WorkFlow";
+const Dashboard = (
+   { nodes, setNodes, onNodesChange,
+  edges, setEdges, onEdgesChange,
+  activeFlowId, setActiveFlowId,
+  flowName, setFlowName}
+) => {
   const [data, setData] = useState(null);
 
   return (
     <DragDropContext.Provider value={[data, setData]}>
       <ReactFlowProvider>
-        <div
-          style={{
-            width: "100vw",
-            height: "100vh",
-            margin: 0,
-            padding: 0,
-          }}
-          className="flex bg-red-500"
-        >
+        <div className="flex p-0 m-0 h-screen">
           <Sidebar />
-          <div style={{ width: "75%", height: "100%" }}>
-            <Workflow />
+          <div className="w-3/4 h-full">
+            <Workflow
+              nodes={nodes}
+              setNodes={setNodes}
+              onNodesChange={onNodesChange}
+              edges={edges}
+              setEdges={setEdges}
+              onEdgesChange={onEdgesChange}
+              activeFlowId={activeFlowId}
+              setActiveFlowId={setActiveFlowId}
+              flowName={flowName}
+              setFlowName={setFlowName}
+            />
           </div>
         </div>
       </ReactFlowProvider>
