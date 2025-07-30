@@ -8,7 +8,7 @@ const ChatWindow = () => {
   const [options, setOptions] = useState([]);
   const userIdRef = useRef(uuidv4());  // stays the same across renders
   const userId = userIdRef.current;
-  const flowId = 1;
+  const flowId = 17;
 
   const sendMessage = async (userMessage) => {
     if (!userMessage.trim()) return;
