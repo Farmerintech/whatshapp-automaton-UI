@@ -18,6 +18,7 @@ import LogicNode from "./nodes/LogicNode";
 import { useDragDrop } from "../context/drag-drop";
 import OptionsNode from "./nodes/OptionsNode";
 import QuickReplyNode from "./nodes/QuickReplyNode";
+import ConditionNode from "./nodes/ConditionNode";
 
 const nodeTypes = {
   template: TemplateNode,
@@ -25,6 +26,7 @@ const nodeTypes = {
   quick: QuickReplyNode,
   custom: CustomMessageNode,
   logic: LogicNode,
+  condition: ConditionNode, // <-- Add this
 };
 
 const getId = () => `node_${+new Date()}`;
@@ -174,35 +176,54 @@ export const Workflow = ({
     }
   };
 
-  const onConnect = useCallback(
-    (params) => {
-      setEdges((eds) => addEdge({ ...params, animated: true }, eds));
+const onConnect = useCallback(
+  (params) => {
+    setEdges((eds) => addEdge({ ...params, animated: true }, eds));
 
-      // Automatically label custom nodes when connected to logic nodes
-      const sourceNode = nodes.find((n) => n.id === params.source);
-      const targetNode = nodes.find((n) => n.id === params.target);
+    const sourceNode = nodes.find((n) => n.id === params.source);
+    const targetNode = nodes.find((n) => n.id === params.target);
 
-      if (sourceNode?.type === "logic" && targetNode?.type === "custom") {
-        const label =
-          params.sourceHandle === "true-branch" ? "Yes" : "No";
+    // Update label for connections from logic or condition nodes to custom nodes
+    if (
+      (sourceNode?.type === "logic" || sourceNode?.type === "condition") &&
+      targetNode?.type === "custom"
+    ) {
+      let label = "";
 
-        setNodes((nds) =>
-          nds.map((node) =>
-            node.id === targetNode.id
-              ? {
-                  ...node,
-                  data: {
-                    ...node.data,
-                    label, // override label dynamically
-                  },
-                }
-              : node
-          )
-        );
+      // Logic nodes use true/false branch names
+      if (sourceNode.type === "logic") {
+        label = params.sourceHandle === "true-branch" ? "Yes" : "No";
       }
-    },
-    [nodes]
+
+   if (sourceNode.type === "condition") {
+  const conditions = sourceNode.data.conditions || [];
+  const matchedCondition = conditions.find(
+    (cond) => cond.branch === params.sourceHandle
   );
+
+  // Use the matched condition's value for the edge label
+  label = matchedCondition ? matchedCondition.value : "Default";
+}
+
+
+      // Update the label of the target custom node
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === targetNode.id
+            ? {
+                ...node,
+                data: {
+                  ...node.data,
+                  label,
+                },
+              }
+            : node
+        )
+      );
+    }
+  },
+  [nodes]
+);
 
   const onDrop = useCallback(
     (event) => {
@@ -297,15 +318,30 @@ export const Workflow = ({
         )
       );
     };
+const handleConditionNodeUpdate = (e) => {
+  const { nodeId, key, value } = e.detail;
+  setNodes((nds) =>
+    nds.map((node) =>
+      node.id === nodeId
+        ? { ...node, data: { ...node.data, [key]: value } }
+        : node
+    )
+  );
+};
+
+
 
     window.addEventListener("delete-node", handleDeleteNode);
     window.addEventListener("update-node-text", handleTextUpdate);
     window.addEventListener("update-node-options", handleOptionsUpdate);
+window.addEventListener("update-condition-node", handleConditionNodeUpdate);
 
     return () => {
       window.removeEventListener("delete-node", handleDeleteNode);
       window.removeEventListener("update-node-text", handleTextUpdate);
       window.removeEventListener("update-node-options", handleOptionsUpdate);
+        window.removeEventListener("update-condition-node", handleConditionNodeUpdate);
+
     };
   }, [setNodes, setEdges]);
 

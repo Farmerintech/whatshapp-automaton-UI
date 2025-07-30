@@ -1,5 +1,3 @@
-// flow-runner.js
-
 function parseFlow(flow) {
   return {
     nodes: typeof flow.nodes === 'string' ? JSON.parse(flow.nodes) : flow.nodes || [],
@@ -7,7 +5,7 @@ function parseFlow(flow) {
   };
 }
 
-const userStates = {}; // In-memory tracking of users' current positions
+const userStates = {}; // In-memory user flow tracking
 
 function getNodeById(nodes, id) {
   return nodes.find((node) => node.id === id);
@@ -24,24 +22,15 @@ function getNextNodes(edges, currentNodeId) {
 
 function evaluateLogicNode(node, userMessage, edges) {
   const normalizedMsg = userMessage.trim().toLowerCase();
-
-  // Default to ["yes", "no"] if options are not defined
   const options = (node.data?.options?.length ? node.data.options : ["Yes", "No"]).map(opt => opt.toLowerCase());
 
   if (!options.includes(normalizedMsg)) {
     return null;
   }
 
-  // Route: 'yes' => true-branch, 'no' => false-branch
-  let handle;
-  if (normalizedMsg === 'yes') {
-    handle = 'true-branch';
-  } else if (normalizedMsg === 'no') {
-    handle = 'false-branch';
-  } else {
-    // Optionally support future branches
-    handle = `option-${normalizedMsg}`;
-  }
+  const handle = normalizedMsg === 'yes' || normalizedMsg === 'no'
+    ? `${normalizedMsg === 'yes' ? 'true' : 'false'}-branch`
+    : `option-${normalizedMsg}`;
 
   const matchedEdge = edges.find(
     (edge) => edge.source === node.id && edge.sourceHandle === handle
@@ -50,8 +39,34 @@ function evaluateLogicNode(node, userMessage, edges) {
   return matchedEdge?.target || null;
 }
 
+function evaluateConditionLogicNode(node, userMessage, edges) {
+  const reply = userMessage.trim().toLowerCase();
+  const conditions = node.data?.conditions || [];
+  const defaultBranch = node.data?.defaultBranch || null;
+
+  const matchedCondition = conditions.find(
+    (cond) => cond.value?.toLowerCase() === reply
+  );
+
+  const matchedBranch = matchedCondition?.branch || defaultBranch;
+
+  if (!matchedBranch) return null;
+
+  const matchedEdge = edges.find(
+    (edge) => edge.source === node.id && edge.sourceHandle === matchedBranch
+  );
+
+  return matchedEdge?.target || null;
+}
+
 function processMessage(flowData, userId, incomingMessage) {
   const { nodes, edges } = parseFlow(flowData);
+
+  // Reset on "hi"
+  if (incomingMessage.trim().toLowerCase() === 'hi') {
+    userStates[userId] = nodes[0]?.id;
+    return processMessage(flowData, userId, '');
+  }
 
   let currentNodeId = userStates[userId] || nodes[0]?.id;
   const currentNode = getNodeById(nodes, currentNodeId);
@@ -62,32 +77,65 @@ function processMessage(flowData, userId, incomingMessage) {
   if (['template', 'custom'].includes(currentNode.type)) {
     response = currentNode.data.text;
 
-    const next = getNextNodes(edges, currentNode.id);
-    if (next.length > 0) {
-      userStates[userId] = next[0].target;
-    } else {
+    let next = getNextNodes(edges, currentNode.id);
+    if (next.length === 0) {
+      // No more nodes → flow ends here
       userStates[userId] = null;
+      return `${response}\n\n✅ End of conversation. Type "hi" to restart.`;
     }
+
+    // Traverse auto-forwarding nodes
+    while (next.length > 0) {
+      const nextNode = getNodeById(nodes, next[0].target);
+      if (!nextNode) break;
+
+      userStates[userId] = nextNode.id;
+
+      if (['template', 'custom'].includes(nextNode.type)) {
+        response += '\n' + nextNode.data.text;
+        next = getNextNodes(edges, nextNode.id);
+
+        // If next has no edges, end flow
+        if (next.length === 0) {
+          userStates[userId] = null;
+          return `${response}\n\n✅ End of conversation. Type "hi" to restart.`;
+        }
+
+        continue;
+      }
+
+      break;
+    }
+
     return response;
   }
 
+  // Handle logic node
   if (currentNode.type === 'logic') {
     const nextId = evaluateLogicNode(currentNode, incomingMessage, edges);
-
     if (!nextId) {
-      const options = currentNode.data.options?.length
-        ? currentNode.data.options.join(', ')
-        : 'Yes, No';
+      const options = currentNode.data.options?.join(', ') || 'Yes, No';
       return `Invalid response. Please reply with one of: ${options}`;
     }
 
-    const nextNode = getNodeById(nodes, nextId);
     userStates[userId] = nextId;
-
-    return nextNode?.data?.text || 'Next node has no message.';
+    return processMessage(flowData, userId, '');
   }
 
-  return 'Unknown node type or flow ended.';
-}
+  // Handle condition node
+  if (currentNode.type === 'condition') {
+    const nextId = evaluateConditionLogicNode(currentNode, incomingMessage, edges);
+    if (!nextId) {
+      const valid = currentNode.data?.conditions?.map(c => c.value).filter(Boolean).join(', ') || 'valid input';
+      return `Invalid input. Please respond with one of: ${valid}`;
+    }
 
+    userStates[userId] = nextId;
+    return processMessage(flowData, userId, '');
+  }
+
+  // Fallback
+  userStates[userId] = null;
+  return '✅ End of conversation. Type "hi" to restart.';
+}
 export default processMessage;

@@ -136,6 +136,33 @@ function Sidebar() {
       >
         Logic Branch (If / Else)
       </div>
+      {/* CONDITION LOGIC NODE */}
+<div
+  draggable
+  onDragStart={(e) =>
+    onDragStart(e, {
+      label: "Condition Logic",
+      text: "Your question here...",
+      type: "condition",
+      conditions: [
+        { value: "value1", branch: "branch1" },
+        { value: "value2", branch: "branch2" }
+      ],
+      defaultBranch: "default-branch"
+    })
+  }
+  style={{
+    padding: "8px",
+    marginBottom: "8px",
+    border: "1px solid #bee3f8",
+    borderRadius: "4px",
+    cursor: "move",
+    backgroundColor: "#e7f3fe",
+  }}
+>
+  Condition Logic (Match Value)
+</div>
+
     </aside>
   );
 }
